@@ -1,0 +1,83 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: chronic_care
+      POSTGRES_USER: chronic_care
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chronic_care -d chronic_care"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    build: .
+    command: ["alembic", "upgrade", "head"]
+    environment: &app_env
+      APP_ENV: prod
+      ALLOW_DEV_LOGIN: "false"
+      DATABASE_URL: postgresql+psycopg://chronic_care:${POSTGRES_PASSWORD}@postgres:5432/chronic_care
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?set JWT_SECRET_KEY}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      INTENT_BASE_URL: ${INTENT_BASE_URL:-http://host.docker.internal:8020}
+      RAG_BASE_URL: ${RAG_DOCKER_BASE_URL:-http://host.docker.internal:8010}
+      RAG_API_KEY: ${RAG_API_KEY:-}
+      RAG_TIMEOUT: "45"
+      RAG_TOP_K: "5"
+      RAG_FAIL_OPEN: "${RAG_FAIL_OPEN:-true}"
+      WX_APPID: ${WX_APPID:-}
+      WX_SECRET: ${WX_SECRET:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build: .
+    environment: *app_env
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz')"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  worker:
+    build: .
+    command: ["python", "scripts/run_reminder_worker.py"]
+    environment: *app_env
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+volumes:
+  pg_data:
+  redis_data:

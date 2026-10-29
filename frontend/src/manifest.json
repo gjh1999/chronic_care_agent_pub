@@ -1,0 +1,21 @@
+{
+  "name": "慢病管理助手",
+  "appid": "__UNI__CHRONIC_CARE",
+  "description": "慢性病健康记录、计划与提醒",
+  "versionName": "0.2.0",
+  "versionCode": "20",
+  "transformPx": false,
+  "mp-weixin": {
+    "appid": "",
+    "setting": {
+      "urlCheck": false,
+      "es6": true,
+      "postcss": true,
+      "minified": true
+    },
+    "usingComponents": true
+  },
+  "h5": {
+    "router": {"mode": "hash"}
+  }
+}

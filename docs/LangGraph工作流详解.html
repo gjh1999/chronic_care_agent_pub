@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>慢性病管理 Agent · LangGraph 工作流详解</title>
+<style>
+:root{
+  --bg:#f5f8fc; --surface:#ffffff; --ink:#16233f; --ink-2:#3b4a63; --muted:#6b7a92;
+  --line:#dde5f0; --line-soft:#edf2f8; --brand:#165dff; --brand-ink:#0f44c2; --brand-soft:#e9f0ff;
+  --danger:#c03940; --danger-soft:#fdeeef; --warn:#9a5b00; --warn-soft:#fff6e5; --ok:#1d7a4a; --ok-soft:#e8f6ee;
+  --code-bg:#f1f5fb; --shadow:0 10px 30px rgba(38,74,150,.07);
+  --mono:ui-monospace,"Cascadia Code",Consolas,"JetBrains Mono",Menlo,monospace;
+  --sans:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14.5px;line-height:1.75;-webkit-font-smoothing:antialiased}
+a{color:var(--brand);text-decoration:none}
+a:hover{text-decoration:underline}
+code,pre,kbd{font-family:var(--mono)}
+code{font-size:12.5px;background:var(--code-bg);padding:1px 6px;border-radius:5px;color:var(--ink-2)}
+pre{margin:12px 0;padding:14px 16px;background:var(--code-bg);border:1px solid var(--line);border-radius:10px;overflow-x:auto;font-size:12.5px;line-height:1.65}
+pre code{background:transparent;padding:0;font-size:inherit;color:inherit}
+h1,h2,h3,h4{line-height:1.3;text-wrap:balance;margin:0}
+p{margin:8px 0}
+ul,ol{margin:6px 0 10px;padding-left:22px}
+li{margin:3px 0}
+li>ul,li>ol{margin:2px 0 4px}
+b,strong{color:var(--ink);font-weight:600}
+hr{border:0;border-top:1px solid var(--line);margin:26px 0}
+
+.hero{background:linear-gradient(135deg,#f4f8ff 0%,#eaf1fe 45%,#dee9fc 100%);border-bottom:1px solid var(--line)}
+.hero-in{max-width:1360px;margin:0 auto;padding:40px 32px 30px}
+.eyebrow{font-size:11px;letter-spacing:2px;color:var(--brand);font-weight:600;text-transform:uppercase}
+.hero h1{font-size:30px;font-weight:700;letter-spacing:.3px;margin-top:8px}
+.hero p.lead{max-width:780px;color:var(--ink-2);margin-top:10px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:12px;color:var(--ink-2)}
+.chip b{font-family:var(--mono);font-weight:600;font-size:12px;color:var(--ink)}
+.back{margin-top:14px;font-size:13px}
+.back a{font-weight:600}
+
+.layout{display:grid;grid-template-columns:250px minmax(0,1fr);gap:32px;max-width:1360px;margin:0 auto;padding:28px 32px 80px}
+nav.toc{position:sticky;top:20px;align-self:start;max-height:calc(100vh - 40px);overflow:auto;padding:14px 0 14px 12px;border-left:1px solid var(--line);font-size:13px}
+nav.toc .t{font-size:11px;letter-spacing:1.5px;color:var(--muted);margin:0 0 8px 8px;font-weight:600}
+nav.toc a{display:block;padding:4px 8px;border-radius:6px;color:var(--ink-2)}
+nav.toc a:hover{background:var(--brand-soft);text-decoration:none;color:var(--brand-ink)}
+nav.toc a span{display:inline-block;width:22px;color:var(--muted);font-family:var(--mono);font-size:11.5px}
+main{min-width:0}
+section{margin-bottom:44px}
+h2{font-size:21px;font-weight:700;padding-left:14px;border-left:4px solid var(--brand);margin:0 0 14px}
+h2 small{font-family:var(--mono);font-size:12px;color:var(--muted);font-weight:500;margin-left:10px}
+h3{font-size:16px;font-weight:650;margin:22px 0 8px;color:var(--ink)}
+h4{font-size:14px;font-weight:650;margin:14px 0 6px;color:var(--ink-2)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 22px;box-shadow:var(--shadow);margin:12px 0}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.grid2>*{min-width:0}
+@media (max-width:1100px){ .grid2{grid-template-columns:1fr} }
+.tbl{overflow-x:auto;margin:10px 0 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:8px 12px;border-bottom:1px solid var(--line-soft);vertical-align:top;text-align:left}
+th{background:var(--line-soft);color:var(--ink-2);font-weight:600;white-space:nowrap;font-size:12.5px}
+tr:last-child td{border-bottom:0}
+td code{white-space:nowrap}
+td.mono,.mono{font-family:var(--mono);font-size:12.5px}
+.callout{border-radius:10px;padding:12px 16px;margin:12px 0;border:1px solid;font-size:13.5px}
+.callout.danger{background:var(--danger-soft);border-color:var(--danger);color:var(--ink)}
+.callout.warn{background:var(--warn-soft);border-color:var(--warn)}
+.callout.info{background:var(--brand-soft);border-color:var(--brand)}
+.callout.ok{background:var(--ok-soft);border-color:var(--ok)}
+.callout b.lbl{display:inline-block;margin-right:6px}
+.callout.danger b.lbl{color:var(--danger)}
+.callout.warn b.lbl{color:var(--warn)}
+.callout.info b.lbl{color:var(--brand-ink)}
+.callout.ok b.lbl{color:var(--ok)}
+.tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11.5px;border:1px solid var(--line);color:var(--ink-2);background:var(--surface);white-space:nowrap}
+.tag.b{background:var(--brand-soft);border-color:transparent;color:var(--brand-ink)}
+.tag.r{background:var(--danger-soft);border-color:transparent;color:var(--danger)}
+.tag.g{background:var(--ok-soft);border-color:transparent;color:var(--ok)}
+.tag.y{background:var(--warn-soft);border-color:transparent;color:var(--warn)}
+.flow{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch;margin:12px 0}
+.flow .st{flex:1 1 130px;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:12.5px;position:relative;line-height:1.45}
+.flow .st b{display:block;font-size:13px;color:var(--brand-ink);margin-bottom:2px}
+.flow .st i{font-style:normal;display:block;color:var(--muted);font-size:11.5px;margin-top:3px}
+.footer{max-width:1360px;margin:0 auto;padding:20px 32px 40px;color:var(--muted);font-size:12px;border-top:1px solid var(--line)}
+
+/* ---- 纵向流程图(子页面专用) ---- */
+.vflow{display:flex;flex-direction:column;align-items:center;margin:16px 0}
+.vnode{min-width:230px;max-width:560px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:13px;text-align:center;box-shadow:var(--shadow)}
+.vnode b{display:block;font-size:13.5px;color:var(--brand-ink)}
+.vnode small{display:block;color:var(--muted);font-size:11.5px;margin-top:2px;line-height:1.55}
+.vnode.start{background:var(--ok-soft);border-color:var(--ok)}
+.vnode.end{background:var(--danger-soft);border-color:var(--danger)}
+.vnode.sub{background:var(--brand-soft);border-color:var(--brand)}
+.vnode.rule{background:var(--warn-soft);border-color:var(--warn)}
+.vnode.ext{border-style:dashed}
+.varrow{color:var(--muted);font-size:15px;line-height:1;margin:4px 0}
+.vcond{font-size:11.5px;color:var(--ink-2);background:var(--code-bg);border:1px solid var(--line);border-radius:999px;padding:2px 12px;margin:6px 0;font-family:var(--mono)}
+.vbranches{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:4px 0 8px}
+.vbranch{display:flex;flex-direction:column;align-items:center;gap:4px;border:1px dashed var(--line);border-radius:12px;padding:8px 10px;background:var(--surface)}
+.vbranch .blbl{font-size:11px;color:var(--muted);text-align:center;line-height:1.4}
+@media (max-width:980px){
+  .layout{grid-template-columns:1fr;padding:20px 18px 60px}
+  nav.toc{position:static;max-height:none;border-left:0;border-bottom:1px solid var(--line);padding:0 0 12px;columns:2}
+  .hero-in{padding:28px 18px 22px}
+}
+@media print{ nav.toc{display:none} .layout{grid-template-columns:1fr} .card,.tbl{box-shadow:none} }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-in">
+    <div class="eyebrow">LangGraph Workflow · Deep Dive</div>
+    <h1>LangGraph 工作流详解</h1>
+    <p class="lead">主图 + 计划/提醒子图的双层编排:节点、条件路由、状态字段、人机协同中断恢复、提醒机制与外部服务依赖。<b>本文档与当前代码实现一一对应</b>,是《慢性病管理 Agent · 架构设计》第 04 节的展开子页面。</p>
+    <div class="chips">
+      <span class="chip">代码基线 <b>2026-10-24</b></span>
+      <span class="chip">主图 <b>app/graph/builder.py</b></span>
+      <span class="chip">子图 <b>app/graph/plan_reminder_graph.py</b></span>
+      <span class="chip">状态 <b>app/graph/state.py</b></span>
+      <span class="chip">入口 <b>app/graph/workflow.py</b></span>
+    </div>
+    <p class="back">← <a href="慢性病管理Agent架构设计.html">返回《慢性病管理 Agent · 架构设计》主页面</a></p>
+  </div>
+</header>
+
+<div class="layout">
+<nav class="toc">
+  <div class="t">目录</div>
+  <a href="#s1"><span>01</span>工作流总览</a>
+  <a href="#s2"><span>02</span>主图结构与路由</a>
+  <a href="#s3"><span>03</span>意图归一化</a>
+  <a href="#s4"><span>04</span>计划/提醒子图</a>
+  <a href="#s5"><span>05</span>状态 ClinicalState</a>
+  <a href="#s6"><span>06</span>节点清单</a>
+  <a href="#s7"><span>07</span>人机协同协议</a>
+  <a href="#s8"><span>08</span>提醒机制</a>
+  <a href="#s9"><span>09</span>外部服务依赖</a>
+  <a href="#s10"><span>10</span>典型消息流</a>
+  <a href="#s11"><span>11</span>安全保障</a>
+</nav>
+
+<main>
+
+<!-- ============================================================ 01 -->
+<section id="s1">
+  <h2>01 工作流总览</h2>
+  <p>整个工作流是一个 <code>StateGraph(ClinicalState)</code> 主图,内部挂载一个 <code>plan_reminder_sub</code> 子图。入口统一为 <code>run_workflow(user_input, user_id, conversation_id, user_confirmed)</code>:</p>
+  <div class="flow">
+    <div class="st"><b>Memory 注入</b><code>memory_service.load_user_memory</code><i>画像 + 任务偏好进入初始状态</i></div>
+    <div class="st"><b>图执行</b><code>_graph.invoke(initial_state)</code><i>parser → … → response</i></div>
+    <div class="st"><b>Memory 更新</b><code>update_from_session_summary</code><i>从 advice + final_response 提取长期偏好</i></div>
+  </div>
+  <div class="vflow">
+    <div class="vnode start"><b>HTTP 入口</b><small>POST /conversations/{id}/messages · JWT 解析 user_id → run_workflow</small></div>
+    <div class="varrow">↓</div>
+    <div class="vnode ext"><b>外部意图服务解析</b><small>parser_node → Medical_Lora(8020)· Qwen2.5-7B routing LoRA</small></div>
+    <div class="varrow">↓</div>
+    <div class="vnode"><b>normalize 归一化</b><small>补全依赖:need_plan→need_advice→history+risk+rag</small></div>
+    <div class="varrow">↓</div>
+    <div class="vcond">route_after_normalize: need_record → 记录 | need_advice → 分析链 | plan/reminder → 子图</div>
+    <div class="varrow">↓</div>
+    <div class="vnode sub"><b>plan_reminder_sub 子图</b><small>计划链(draft→conflict→confirm→archive)与直接提醒链,详见 04 节</small></div>
+    <div class="varrow">↓</div>
+    <div class="vnode"><b>response 汇总输出</b><small>拼装 final_response(🚨/✅/💡/📋/⏰)</small></div>
+    <div class="varrow">↓</div>
+    <div class="vnode end"><b>END</b><small>结果返回 conversation_service 落消息、判 waiting_confirmation</small></div>
+  </div>
+  <div class="callout info"><b class="lbl">双层编排</b>主图负责「意图解析 → 记录 → 健康分析(历史/风险/RAG/建议)→ 计划与提醒 → 输出」的主干;子图负责计划的两阶段确认与直接提醒两条业务链。子图在主图中只是一个普通节点(<code>NODE_PLAN_REMINDER_SUB = "plan_reminder_sub"</code>),结束后固定回到 response 节点。</div>
+</section>
+
+<!-- ============================================================ 02 -->
+<section id="s2">
+  <h2>02 主图结构与路由 <small>builder.py + routing.py</small></h2>
+
+  <h3>2.1 节点链</h3>
+  <div class="vflow">
+    <div class="vnode start"><b>parser_node</b><small>外部意图服务:routing + slots + confidence</small></div>
+    <div class="varrow">↓</div>
+    <div class="vnode"><b>normalize_intent_node</b><small>意图依赖补全(见 03 节)</small></div>
+    <div class="varrow">↓</div>
+    <div class="vcond">route_after_normalize(state)</div>
+    <div class="vbranches">
+      <div class="vbranch"><div class="blbl">need_record</div><div class="vnode"><b>record_node</b><small>血糖/血压/症状写入 health_observation</small></div></div>
+      <div class="vbranch"><div class="blbl">need_advice</div><div class="vnode"><b>history → risk → rag → advice</b><small>分析链,线性固定</small></div></div>
+      <div class="vbranch"><div class="blbl">need_plan / need_reminder</div><div class="vnode sub"><b>plan_reminder_sub</b><small>计划/提醒子图</small></div></div>
+      <div class="vbranch"><div class="blbl">其余</div><div class="vnode"><b>response_node</b><small>直接输出</small></div></div>
+    </div>
+    <div class="varrow">↓(record 之后)</div>
+    <div class="vcond">route_after_record(state)</div>
+    <div class="vbranches">
+      <div class="vbranch"><div class="blbl">need_advice</div><div class="vnode"><b>history → risk → rag → advice</b><small>记录后继续分析</small></div></div>
+      <div class="vbranch"><div class="blbl">need_plan / need_reminder</div><div class="vnode sub"><b>plan_reminder_sub</b></div></div>
+      <div class="vbranch"><div class="blbl">其余</div><div class="vnode"><b>response_node</b></div></div>
+    </div>
+    <div class="varrow">↓(advice 之后)</div>
+    <div class="vcond">route_after_advice(state)</div>
+    <div class="vbranches">
+      <div class="vbranch"><div class="blbl">risk = urgent</div><div class="vnode rule"><b>response_node</b><small>紧急:跳过计划/提醒,直接输出拦截文案</small></div></div>
+      <div class="vbranch"><div class="blbl">need_plan / need_reminder</div><div class="vnode sub"><b>plan_reminder_sub</b></div></div>
+      <div class="vbranch"><div class="blbl">其余</div><div class="vnode"><b>response_node</b></div></div>
+    </div>
+    <div class="varrow">↓(子图之后)</div>
+    <div class="vnode"><b>response_node</b><small>固定边:子图结束必回 response</small></div>
+    <div class="varrow">↓</div>
+    <div class="vnode end"><b>END</b></div>
+  </div>
+
+  <h3>2.2 路由函数</h3>
+  <div class="tbl"><table>
+    <tr><th>函数</th><th>位置</th><th>判定顺序</th></tr>
+    <tr><td class="mono">route_after_normalize</td><td class="mono">app/graph/routing.py</td><td><code>need_record</code> → record;<code>need_advice</code> → history;<code>need_reminder or need_plan</code> → 子图;否则 response</td></tr>
+    <tr><td class="mono">route_after_record</td><td class="mono">app/graph/routing.py</td><td><code>need_advice</code> → history;<code>need_reminder or need_plan</code> → 子图;否则 response</td></tr>
+    <tr><td class="mono">route_after_advice</td><td class="mono">app/graph/routing.py</td><td><span class="tag r">risk=urgent 优先 → response(计划/提醒全部跳过)</span>;<code>need_plan or need_reminder</code> → 子图;否则 response</td></tr>
+    <tr><td class="mono">_route_entry</td><td class="mono">plan_reminder_graph.py</td><td>子图入口:<code>need_plan</code> → plan_draft;否则 reminder_router</td></tr>
+    <tr><td class="mono">_route_after_user_confirm</td><td class="mono">plan_reminder_graph.py</td><td>子图确认路由,见 04 节</td></tr>
+  </table></div>
+  <div class="callout ok"><b class="lbl">路由语义</b>记录与建议是两条先后串联的主链:先记录(如果有),再分析(如果有),最后计划/提醒(如果有)。任何链路为空都会直接跳到 response,不会执行空节点。</div>
+</section>
+
+<!-- ============================================================ 03 -->
+<section id="s3">
+  <h2>03 意图归一化 <small>app/graph/normalizer.py</small></h2>
+  <p>parser 输出的 <code>intent.routing</code> 直接成为 <code>intent_flags</code>,normalize 节点在此基础上补全依赖关系,保证后续路由不出现"想给建议却没有查历史"这类断链:</p>
+  <div class="tbl"><table>
+    <tr><th>规则</th><th>说明</th></tr>
+    <tr><td><code>need_plan → need_advice = True</code></td><td>计划必须基于建议(分析链先行)</td></tr>
+    <tr><td><code>need_advice → need_history + need_risk + need_rag = True</code></td><td>建议需要历史、风险与证据三件套</td></tr>
+    <tr><td><code>reminder_source</code></td><td><code>need_reminder</code> 且 <code>need_plan</code> → <code>"plan"</code>;仅 <code>need_reminder</code> → <code>"direct"</code>。当前仅作信息用途(计划提醒改由确认服务创建,见 08 节)</td></tr>
+  </table></div>
+  <div class="callout warn"><b class="lbl">行为观察(2026-10-24 E2E)</b>意图模型对「血压145/92,这正常吗?」这类纯提问会额外输出 <code>need_record=true</code>(提及测量值即隐含记录),主项目会因此落一条观测。若产品不想要隐式记录,需在意图服务侧调整训练样本或加后处理。</div>
+</section>
+
+<!-- ============================================================ 04 -->
+<section id="s4">
+  <h2>04 计划/提醒子图 <small>plan_reminder_graph.py</small></h2>
+  <div class="vflow">
+    <div class="vnode start"><b>plan_reminder_entry</b><small>入口节点,透传状态</small></div>
+    <div class="varrow">↓</div>
+    <div class="vcond">_route_entry: need_plan ?</div>
+    <div class="vbranches">
+      <div class="vbranch" style="flex:1;min-width:300px">
+        <div class="blbl">need_plan = true —— 计划链</div>
+        <div class="vnode"><b>plan_draft_node</b><small>LLM 按 PLAN_PROMPT 生成结构化 tasks(带时间)</small></div>
+        <div class="varrow">↓</div>
+        <div class="vnode"><b>plan_conflict_node</b><small>detect_plan_conflicts(现有计划当前为 mock)</small></div>
+        <div class="varrow">↓</div>
+        <div class="vnode rule"><b>user_confirm_node</b><small>保留 user_confirmed 状态,禁止默认同意</small></div>
+        <div class="varrow">↓</div>
+        <div class="vcond">_route_after_user_confirm</div>
+        <div class="vbranches">
+          <div class="vbranch"><div class="blbl">user_confirmed = True</div><div class="vnode sub"><b>plan_archive_node</b><small>create_draft + confirm_plan:落库并创建计划提醒</small></div></div>
+          <div class="vbranch"><div class="blbl">未确认 &amp; need_reminder</div><div class="vnode"><b>→ reminder_router</b><small>同句直接提醒继续处理</small></div></div>
+          <div class="vbranch"><div class="blbl">未确认 &amp; 无提醒意图</div><div class="vnode end"><b>END</b><small>等待 API 恢复(见 07 节)</small></div></div>
+        </div>
+      </div>
+      <div class="vbranch" style="flex:1;min-width:300px">
+        <div class="blbl">need_plan = false —— 提醒链</div>
+        <div class="vnode"><b>reminder_router_node</b><small>透传节点</small></div>
+        <div class="varrow">↓</div>
+        <div class="vnode"><b>direct_reminder_node</b><small>从 slots.reminder 取 task/time/repeat</small></div>
+        <div class="varrow">↓</div>
+        <div class="vnode"><b>reminder_create_node</b><small>create_reminder:强制时间解析 + outbox</small></div>
+        <div class="varrow">↓</div>
+        <div class="vnode end"><b>END</b></div>
+      </div>
+    </div>
+  </div>
+  <div class="callout info"><b class="lbl">2026-10-24 修复后语义</b>计划提醒不再走子图内的 <code>plan_reminder_node</code> 链(已删除),改由 <code>plan_service.confirm_plan</code> 在确认计划时按计划项创建。这样 API 确认路径(resume_interrupt)与工作流确认路径(user_confirmed=True)共用同一实现,不会出现「API 确认后没有计划提醒」的缺陷。</div>
+</section>
+
+<!-- ============================================================ 05 -->
+<section id="s5">
+  <h2>05 状态 ClinicalState <small>app/graph/state.py · TypedDict, total=False</small></h2>
+  <div class="tbl"><table>
+    <tr><th>分组</th><th>字段</th><th>写入者</th></tr>
+    <tr><td>会话</td><td class="mono">user_id · user_input · conversation_id</td><td>run_workflow 初始状态</td></tr>
+    <tr><td>记忆</td><td class="mono">memory_context · task_preferences</td><td>run_workflow(memory_service)</td></tr>
+    <tr><td>意图解析</td><td class="mono">intent · intent_flags · confidence · extracted_data · missing_fields · risk_flags · normalized</td><td>parser_node(外部意图服务)</td></tr>
+    <tr><td>记录</td><td class="mono">record_result</td><td>record_node</td></tr>
+    <tr><td>分析</td><td class="mono">history_data · risk_result · rag_docs · advice</td><td>history / risk / rag / advice 节点</td></tr>
+    <tr><td>RAG 证据</td><td class="mono">rag_query · rag_queries · rag_context · rag_evidence · rag_cache_hit · rag_error · rag_suggested_action · rag_needs_human_confirmation · rag_quality_passed</td><td>rag_node</td></tr>
+    <tr><td>计划</td><td class="mono">plan_draft · plan_conflicts · user_confirmed · confirmed_plan · plan_archive_result</td><td>plan_draft / conflict / confirm / archive 节点</td></tr>
+    <tr><td>提醒</td><td class="mono">reminder_source · direct_reminder · reminder_created · reminder_result</td><td>normalizer / direct_reminder / reminder_create / archive 节点</td></tr>
+    <tr><td>输出</td><td class="mono">final_response · error</td><td>response_node</td></tr>
+  </table></div>
+  <p>节点返回 dict 即可按字段合并进状态(<code>TypedDict, total=False</code> 允许部分更新)。跨节点传递的关键语义:<code>user_confirmed</code>(调用方注入,None 表示首轮)、<code>confirmed_plan</code>(archive 节点落库后的计划项)、<code>reminder_created / reminder_result</code>(response 节点据此输出 ⏰)。</p>
+</section>
+
+<!-- ============================================================ 06 -->
+<section id="s6">
+  <h2>06 节点清单 <small>app/nodes/ · 与代码一一对应</small></h2>
+  <div class="tbl"><table>
+    <tr><th>节点(文件)</th><th>职责</th><th>外部依赖</th><th>写库</th></tr>
+    <tr><td class="mono">parser_node.py</td><td>调用 Medical_Lora 多意图识别与槽位抽取;写 <code>intent/flags/slots/confidence</code></td><td><span class="tag b">意图服务 8020</span></td><td>—</td></tr>
+    <tr><td class="mono">graph/normalizer.py</td><td>意图依赖补全(见 03 节)</td><td>—</td><td>—</td></tr>
+    <tr><td class="mono">record_node.py</td><td>slots.record → 血糖/血压/症状观测,走 <code>health_service.create_observation</code></td><td>—</td><td><span class="tag g">health_observation</span></td></tr>
+    <tr><td class="mono">history_node.py</td><td>最近 10 条观测(时间倒序后反转)→ history_data</td><td>—</td><td>—</td></tr>
+    <tr><td class="mono">risk_node.py</td><td>本地规则引擎 <code>evaluate_risk</code> → level/reason(纯函数,不等 LLM)</td><td>—</td><td>—</td></tr>
+    <tr><td class="mono">rag_node.py</td><td>外部 RAG 检索 + 证据质量门控;失败时 fail-open 降级</td><td><span class="tag b">RAG 8010</span></td><td>—</td></tr>
+    <tr><td class="mono">advice_node.py</td><td>urgent 本地拦截;RAG 需人工确认/澄清/不可用/证据不足 → 固定安全文案;通过才调 LLM 生成建议</td><td><span class="tag b">LLM</span></td><td>—</td></tr>
+    <tr><td class="mono">plan_draft_node.py</td><td>LLM 按 PLAN_PROMPT 生成结构化计划 tasks(带 time)</td><td><span class="tag b">LLM</span></td><td>—</td></tr>
+    <tr><td class="mono">plan_conflict_node.py</td><td><code>detect_plan_conflicts</code>;现有计划目前为 mock,待接 DB</td><td>—</td><td>—</td></tr>
+    <tr><td class="mono">user_confirm_node.py</td><td>仅保留调用方传入的 <code>user_confirmed</code>,禁止默认同意</td><td>—</td><td>—</td></tr>
+    <tr><td class="mono">plan_archive_node.py</td><td><code>create_draft + confirm_plan</code>:计划落库、状态 confirmed,并按计划项创建提醒</td><td>—</td><td><span class="tag g">care_plan / item / reminder</span></td></tr>
+    <tr><td class="mono">reminder_router_node.py</td><td>透传(历史路由兼容)</td><td>—</td><td>—</td></tr>
+    <tr><td class="mono">direct_reminder_node.py</td><td>从 slots.reminder 提取 task / time / repeat</td><td>—</td><td>—</td></tr>
+    <tr><td class="mono">reminder_create_node.py</td><td><code>create_reminder</code>:时间强制解析 + 同事务写 outbox</td><td>—</td><td><span class="tag g">reminder + outbox</span></td></tr>
+    <tr><td class="mono">response_node.py</td><td>拼装 final_response:🚨 高危 / ✅ 已记录 / 💡 建议 / 📋 计划 / ⏰ 提醒</td><td>—</td><td>—</td></tr>
+  </table></div>
+</section>
+
+<!-- ============================================================ 07 -->
+<section id="s7">
+  <h2>07 人机协同协议 <small>两阶段确认 · conversation_service</small></h2>
+  <p>计划采用「草稿 → 用户确认 → 生效」两阶段,确认状态由 <code>conversation_checkpoint</code> 表管理(项目自研协议,不依赖 LangGraph <code>interrupt()/Command</code>):</p>
+  <div class="flow">
+    <div class="st"><b>① 首轮消息</b><code>run_workflow(user_confirmed=None)</code><i>子图停在确认路由,plan_draft 返回</i></div>
+    <div class="st"><b>② 存草稿</b><code>create_draft(status=draft, revision=1)</code><i>+ checkpoint(waiting) + 会话转 waiting_confirmation</i></div>
+    <div class="st"><b>③ 响应</b><code>interrupt_id + revision + plan</code><i>客户端展示计划卡片</i></div>
+    <div class="st"><b>④ 恢复</b><code>resume_interrupt(action, revision)</code><i>校验 checkpoint → 执行业务</i></div>
+    <div class="st"><b>⑤ 完成</b><code>status=completed · 会话转 active</code><i>audit_log 记录 plan.{action}</i></div>
+  </div>
+  <h3>7.1 resume 校验链(按顺序)</h3>
+  <ol>
+    <li>会话存在且属于当前用户(JWT 身份);</li>
+    <li><code>interrupt_id</code> 存在;<code>revision</code> 一致,否则 409「计划版本已变化,请刷新后重试」;</li>
+    <li>checkpoint 未被处理过 —— 已处理且同 action 直接返回首次结果(幂等);</li>
+    <li>未过期(<code>expires_at</code>,默认 7 天),过期返回 409。</li>
+  </ol>
+  <h3>7.2 三种动作</h3>
+  <div class="tbl"><table>
+    <tr><th>action</th><th>行为</th></tr>
+    <tr><td class="mono">confirm</td><td><code>plan_service.confirm_plan</code>:状态 draft → confirmed(revision+1),并按计划项创建提醒(见 08 节)</td></tr>
+    <tr><td class="mono">reject</td><td><code>change_plan_status(..., "reject")</code>:状态 draft → rejected</td></tr>
+    <tr><td class="mono">modify</td><td>reject 旧计划 + 以「请根据以下要求修改刚才的计划:…」重新 <code>send_message</code> 跑一轮工作流(新草稿、新 checkpoint)</td></tr>
+  </table></div>
+  <div class="callout ok"><b class="lbl">幂等保障</b>checkpoint 状态机 <code>waiting → resumed</code> 保证同一 interrupt 只成功处理一次;重复提交返回首次结果。计划状态变更以 revision 做乐观锁。</div>
+</section>
+
+<!-- ============================================================ 08 -->
+<section id="s8">
+  <h2>08 提醒机制 <small>直接提醒 + 计划提醒 + outbox + worker</small></h2>
+
+  <h3>8.1 两条创建路径</h3>
+  <div class="grid2">
+    <div class="card">
+      <h4 style="margin-top:0">直接提醒(对话)</h4>
+      <p>「明早8点提醒我测血糖」→ <code>direct_reminder_node</code> 取 slots → <code>reminder_create_node</code> → <code>create_reminder</code>。</p>
+      <p><code>dedupe_key = reminder:{id}:{uuid}</code>,无幂等键冲突风险。</p>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">计划提醒(确认时)</h4>
+      <p>计划确认(API resume 或工作流 archive)→ <code>confirm_plan</code> 逐计划项创建提醒,<code>plan_item_id</code> 关联回 <code>care_plan_item</code>。</p>
+      <p><code>dedupe_key = plan:{plan_id}:{item_id}</code>,重复确认不重复创建。无时间/解析失败的计划项进入 <code>skipped</code> 返回,不静默丢失。</p>
+    </div>
+  </div>
+
+  <h3>8.2 时间解析(2026-10-24 修复 F3)</h3>
+  <ul>
+    <li><code>resolve_next_run_at(schedule_rule)</code>:支持自然语言(明早8点/明晚9点/晚上9点/下午3点半)、<code>HH:MM</code>、显式 <code>YYYY-MM-DD</code>;统一换算为 aware UTC(中国固定 +8);</li>
+    <li>解析出的时刻已过去(如 22 点解析 "21:00")自动顺延到次日同一时刻;</li>
+    <li>解析失败 → <code>create_reminder</code> 抛 422「提醒时间无法解析」,<span class="tag r">禁止静默按"立即"投递</span>。</li>
+  </ul>
+
+  <h3>8.3 可靠投递(outbox + worker)</h3>
+  <div class="flow">
+    <div class="st"><b>写提醒</b><code>reminder(next_run_at, scheduled)</code><i>与 outbox 同事务</i></div>
+    <div class="st"><b>写 outbox</b><code>available_at = next_run_at</code><i>dedupe_key 唯一</i></div>
+    <div class="st"><b>worker 轮询</b><code>available_at ≤ now · status=pending</code><i>锁定逐条投递</i></div>
+    <div class="st"><b>结果回写</b><code>sent / failed · attempts +1</code><i>指数退避,最多 5 次</i></div>
+  </div>
+  <div class="callout warn"><b class="lbl">未覆盖</b>worker 的真实投递链路(in_app 通道实现/微信模板)尚未在线验证;当前 <code>deliver_wechat</code> 未配置。数据库侧 available_at 语义已修复(E2E 隔离库核查:立即投递行数为 0)。</div>
+</section>
+
+<!-- ============================================================ 09 -->
+<section id="s9">
+  <h2>09 外部服务依赖</h2>
+  <div class="tbl"><table>
+    <tr><th>服务</th><th>地址</th><th>调用点</th><th>降级策略</th></tr>
+    <tr><td><b>Medical_Lora 意图服务</b><br>Qwen2.5-7B + routing LoRA(4-bit)</td><td class="mono">127.0.0.1:8020<br>POST /v1/intent/parse</td><td class="mono">app/nodes/parser_node.py</td><td>不可用即失败(入口依赖,无降级)</td></tr>
+    <tr><td><b>外部 RAG 检索服务</b><br>知识库 chronic_disease(慢病指南)</td><td class="mono">127.0.0.1:8010<br>POST /v1/retrieve</td><td class="mono">app/nodes/rag_node.py</td><td><code>RAG_FAIL_OPEN</code>:失败返回「无证据降级」,不阻断记录流</td></tr>
+    <tr><td><b>外部 LLM</b><br>DashScope qwen3.6-plus</td><td class="mono">OpenAI-compatible API</td><td class="mono">plan_draft_node / advice_node</td><td>urgent 与证据不足场景完全不调用 LLM(规则兜底)</td></tr>
+  </table></div>
+  <p>三个外部依赖在 <code>GET /dependencies</code> 有连通性探针(intent_service / external_rag)。意图服务输出 <code>routing / confidence / slots / missing_fields / risk_flags / normalized</code>,由 <code>app/intent_client/schemas.py</code> 约束契约。</p>
+</section>
+
+<!-- ============================================================ 10 -->
+<section id="s10">
+  <h2>10 典型消息流 <small>五条路径 · 2026-10-24 E2E 实测</small></h2>
+
+  <h3>① 只记录(18.5s 实测)</h3>
+  <div class="flow">
+    <div class="st"><b>parser</b><i>need_record</i></div>
+    <div class="st"><b>record</b><i>血糖 6.8 落库</i></div>
+    <div class="st"><b>response</b><i>✅ 已记录数据</i></div>
+  </div>
+
+  <h3>② 只建议(70.0s 实测,含 LLM)</h3>
+  <div class="flow">
+    <div class="st"><b>parser</b><i>need_advice(+隐式 record)</i></div>
+    <div class="st"><b>history</b><i>最近 10 条</i></div>
+    <div class="st"><b>risk</b><i>本地规则 level=medium</i></div>
+    <div class="st"><b>rag</b><i>5 条证据 · 质量通过</i></div>
+    <div class="st"><b>advice</b><i>LLM:结论→依据→下一步</i></div>
+    <div class="st"><b>response</b><i>💡 建议</i></div>
+  </div>
+
+  <h3>③ 计划两阶段确认(189.9s 实测)</h3>
+  <div class="flow">
+    <div class="st"><b>分析链</b><i>history→risk→rag→advice</i></div>
+    <div class="st"><b>plan_draft</b><i>LLM 生成 13 个任务(带时间)</i></div>
+    <div class="st"><b>等待确认</b><i>waiting_confirmation + interrupt_id</i></div>
+    <div class="st"><b>confirm</b><i>confirm_plan:confirmed + 计划提醒落库</i></div>
+    <div class="st"><b>完成</b><i>status=completed · 会话转 active</i></div>
+  </div>
+
+  <h3>④ 直接提醒(16.5s 实测)</h3>
+  <div class="flow">
+    <div class="st"><b>parser</b><i>need_reminder</i></div>
+    <div class="st"><b>子图提醒链</b><i>direct → create</i></div>
+    <div class="st"><b>时间解析</b><i>明早8点 → 次日 00:00 UTC</i></div>
+    <div class="st"><b>response</b><i>⏰ 已创建提醒</i></div>
+  </div>
+
+  <h3>⑤ 多意图全流程(114.6s 实测)</h3>
+  <p>「记录+建议+计划+提醒」四意图复合句:</p>
+  <div class="flow">
+    <div class="st"><b>record</b><i>血压 145/92 落库</i></div>
+    <div class="st"><b>分析链</b><i>history→risk→rag→advice</i></div>
+    <div class="st"><b>计划链(首轮)</b><i>草稿 → waiting_confirmation</i></div>
+    <div class="st"><b>提醒链(首轮)</b><i>「晚上9点测血压」直接提醒落库</i></div>
+    <div class="st"><b>API confirm</b><i>计划提醒按计划项创建</i></div>
+  </div>
+
+  <h3>⑥ 紧急拦截(24.3s 实测,零 LLM)</h3>
+  <div class="flow">
+    <div class="st"><b>risk</b><i>level=urgent(本地规则)</i></div>
+    <div class="st"><b>advice</b><i>固定高危文案,不调 LLM</i></div>
+    <div class="st"><b>response</b><i>🚨 跳过计划/提醒</i></div>
+  </div>
+</section>
+
+<!-- ============================================================ 11 -->
+<section id="s11">
+  <h2>11 安全保障 <small>规则兜底 · 确认机制 · 可追溯</small></h2>
+  <div class="grid2">
+    <div class="card">
+      <h4 style="margin-top:0">规则先于 LLM</h4>
+      <ul>
+        <li>血压 ≥180/120 或血糖高危 → <code>level=urgent</code>,本地固定文案拦截,不经过 RAG/LLM,计划与提醒全部跳过</li>
+        <li>LLM 只负责认知(理解/生成),Rule 负责安全</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">证据门控</h4>
+      <ul>
+        <li>RAG 证据必须质量通过(<code>suggested_action ∈ {continue, retry_done}</code> + <code>quality_passed</code>)才喂给 LLM</li>
+        <li>需人工确认 / 需澄清 / 证据不足 / 服务不可用 → 固定安全文案,不生成医学结论</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">人机协同</h4>
+      <ul>
+        <li>计划必须用户确认才生效;user_confirm 节点禁止默认同意</li>
+        <li>checkpoint 幂等 + revision 乐观锁,旧页面无法覆盖新计划</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">副作用可靠</h4>
+      <ul>
+        <li>提醒时间解析失败 → 422 明确报错,禁止静默立即投递</li>
+        <li>提醒 + outbox 同事务写入,dedupe_key 幂等,worker 可重试</li>
+        <li>健康记录支持 source_event_id 幂等约束</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+</main>
+</div>
+
+<footer class="footer">慢性病管理 Agent · LangGraph 工作流详解 · 代码基线 2026-10-24 · 本页为《慢性病管理 Agent · 架构设计》第 04 节的展开子页面;内容与 app/graph/、app/nodes/ 当前实现一一对应,细节变更见 docs/CHANGELOG.md。</footer>
+</body>
+</html>

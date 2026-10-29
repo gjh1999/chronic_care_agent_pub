@@ -1,0 +1,37 @@
+# Environment
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+.pytest_cache/
+dist/
+build/
+node_modules/
+.vite/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data
+data/sqlite/*.db
+data/faiss/
+data/memory/
+data/vector_store/
+*.db
+
+# Logs
+*.log
+
+# Local dev tooling
+.claude/

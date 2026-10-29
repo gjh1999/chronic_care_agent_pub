@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>慢性病管理 Agent · 架构设计</title>
+<style>
+:root{
+  --bg:#f5f8fc; --surface:#ffffff; --ink:#16233f; --ink-2:#3b4a63; --muted:#6b7a92;
+  --line:#dde5f0; --line-soft:#edf2f8; --brand:#165dff; --brand-ink:#0f44c2; --brand-soft:#e9f0ff;
+  --danger:#c03940; --danger-soft:#fdeeef; --warn:#9a5b00; --warn-soft:#fff6e5; --ok:#1d7a4a; --ok-soft:#e8f6ee;
+  --code-bg:#f1f5fb; --shadow:0 10px 30px rgba(38,74,150,.07);
+  --mono:ui-monospace,"Cascadia Code",Consolas,"JetBrains Mono",Menlo,monospace;
+  --sans:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14.5px;line-height:1.75;-webkit-font-smoothing:antialiased}
+a{color:var(--brand);text-decoration:none}
+a:hover{text-decoration:underline}
+code,pre,kbd{font-family:var(--mono)}
+code{font-size:12.5px;background:var(--code-bg);padding:1px 6px;border-radius:5px;color:var(--ink-2)}
+pre{margin:12px 0;padding:14px 16px;background:var(--code-bg);border:1px solid var(--line);border-radius:10px;overflow-x:auto;font-size:12.5px;line-height:1.65}
+pre code{background:transparent;padding:0;font-size:inherit;color:inherit}
+h1,h2,h3,h4{line-height:1.3;text-wrap:balance;margin:0}
+p{margin:8px 0}
+ul,ol{margin:6px 0 10px;padding-left:22px}
+li{margin:3px 0}
+li>ul,li>ol{margin:2px 0 4px}
+b,strong{color:var(--ink);font-weight:600}
+hr{border:0;border-top:1px solid var(--line);margin:26px 0}
+
+.hero{background:linear-gradient(135deg,#f4f8ff 0%,#eaf1fe 45%,#dee9fc 100%);border-bottom:1px solid var(--line)}
+.hero-in{max-width:1360px;margin:0 auto;padding:40px 32px 30px}
+.eyebrow{font-size:11px;letter-spacing:2px;color:var(--brand);font-weight:600;text-transform:uppercase}
+.hero h1{font-size:30px;font-weight:700;letter-spacing:.3px;margin-top:8px}
+.hero p.lead{max-width:780px;color:var(--ink-2);margin-top:10px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:12px;color:var(--ink-2)}
+.chip b{font-family:var(--mono);font-weight:600;font-size:12px;color:var(--ink)}
+.chip.red{border-color:var(--danger);color:var(--danger);background:var(--danger-soft)}
+
+.layout{display:grid;grid-template-columns:250px minmax(0,1fr);gap:32px;max-width:1360px;margin:0 auto;padding:28px 32px 80px}
+nav.toc{position:sticky;top:20px;align-self:start;max-height:calc(100vh - 40px);overflow:auto;padding:14px 0 14px 12px;border-left:1px solid var(--line);font-size:13px}
+nav.toc .t{font-size:11px;letter-spacing:1.5px;color:var(--muted);margin:0 0 8px 8px;font-weight:600}
+nav.toc a{display:block;padding:4px 8px;border-radius:6px;color:var(--ink-2)}
+nav.toc a:hover{background:var(--brand-soft);text-decoration:none;color:var(--brand-ink)}
+nav.toc a span{display:inline-block;width:22px;color:var(--muted);font-family:var(--mono);font-size:11.5px}
+main{min-width:0}
+section{margin-bottom:44px}
+h2{font-size:21px;font-weight:700;padding-left:14px;border-left:4px solid var(--brand);margin:0 0 14px}
+h2 small{font-family:var(--mono);font-size:12px;color:var(--muted);font-weight:500;margin-left:10px}
+h3{font-size:16px;font-weight:650;margin:22px 0 8px;color:var(--ink)}
+h4{font-size:14px;font-weight:650;margin:14px 0 6px;color:var(--ink-2)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 22px;box-shadow:var(--shadow);margin:12px 0}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.grid2>*{min-width:0}
+@media (max-width:1100px){ .grid2{grid-template-columns:1fr} }
+.tbl{overflow-x:auto;margin:10px 0 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:8px 12px;border-bottom:1px solid var(--line-soft);vertical-align:top;text-align:left}
+th{background:var(--line-soft);color:var(--ink-2);font-weight:600;white-space:nowrap;font-size:12.5px}
+tr:last-child td{border-bottom:0}
+td code{white-space:nowrap}
+td.mono,.mono{font-family:var(--mono);font-size:12.5px}
+.num{font-variant-numeric:tabular-nums}
+.callout{border-radius:10px;padding:12px 16px;margin:12px 0;border:1px solid;font-size:13.5px}
+.callout.danger{background:var(--danger-soft);border-color:var(--danger);color:var(--ink)}
+.callout.warn{background:var(--warn-soft);border-color:var(--warn)}
+.callout.info{background:var(--brand-soft);border-color:var(--brand)}
+.callout.ok{background:var(--ok-soft);border-color:var(--ok)}
+.callout b.lbl{display:inline-block;margin-right:6px}
+.callout.danger b.lbl{color:var(--danger)}
+.callout.warn b.lbl{color:var(--warn)}
+.callout.info b.lbl{color:var(--brand-ink)}
+.callout.ok b.lbl{color:var(--ok)}
+.tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11.5px;border:1px solid var(--line);color:var(--ink-2);background:var(--surface);white-space:nowrap}
+.goto{display:block;margin:0 0 14px;padding:12px 18px;border-radius:12px;background:var(--brand-soft);border:1px solid var(--brand);color:var(--brand-ink);font-weight:600}
+.goto:hover{text-decoration:none;background:#dce8ff}
+.goto small{display:block;color:var(--ink-2);font-weight:400;font-size:12.5px;margin-top:2px}
+.tag.b{background:var(--brand-soft);border-color:transparent;color:var(--brand-ink)}
+.tag.r{background:var(--danger-soft);border-color:transparent;color:var(--danger)}
+.tag.g{background:var(--ok-soft);border-color:transparent;color:var(--ok)}
+.tag.y{background:var(--warn-soft);border-color:transparent;color:var(--warn)}
+
+/* 架构图 */
+.arch{display:grid;gap:12px;margin:14px 0}
+.tier{display:grid;grid-template-columns:120px minmax(0,1fr);gap:12px;align-items:stretch}
+.tier .lbl{display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;letter-spacing:1px;color:var(--muted);border-right:1px dashed var(--line);padding-right:10px}
+.boxes{display:flex;flex-wrap:wrap;gap:10px}
+.box{flex:1 1 170px;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.5}
+.box b{display:block;font-size:13px;margin-bottom:2px}
+.box.accent{border-color:var(--brand);background:var(--brand-soft)}
+.box.keep{border-color:var(--ok);background:var(--ok-soft)}
+.box.ext{border-style:dashed}
+.box small{color:var(--muted);display:block}
+.down{text-align:center;color:var(--muted);font-size:18px;line-height:1;margin:-4px 0 -4px 132px}
+
+/* 流程步骤 */
+.flow{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch;margin:12px 0}
+.flow .st{flex:1 1 130px;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:12.5px;position:relative;line-height:1.45}
+.flow .st b{display:block;font-size:13px;color:var(--brand-ink);margin-bottom:2px}
+.flow .st i{font-style:normal;display:block;color:var(--muted);font-size:11.5px;margin-top:3px}
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 16px;font-size:13.5px}
+.kv dt{color:var(--muted);white-space:nowrap}
+.kv dd{margin:0}
+.footer{max-width:1360px;margin:0 auto;padding:20px 32px 40px;color:var(--muted);font-size:12px;border-top:1px solid var(--line)}
+@media (max-width:980px){
+  .layout{grid-template-columns:1fr;padding:20px 18px 60px}
+  nav.toc{position:static;max-height:none;border-left:0;border-bottom:1px solid var(--line);padding:0 0 12px;columns:2}
+  .grid2{grid-template-columns:1fr}
+  .tier{grid-template-columns:1fr}
+  .tier .lbl{border-right:0;border-bottom:1px dashed var(--line);padding:0 0 4px;justify-content:flex-start}
+  .down{margin-left:0}
+  .hero-in{padding:28px 18px 22px}
+}
+@media print{ nav.toc{display:none} .layout{grid-template-columns:1fr} .card,.tbl{box-shadow:none} }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-in">
+    <div class="eyebrow">Architecture Design · Implementation Ready</div>
+    <h1>慢性病管理 Agent · 架构设计</h1>
+    <p class="lead">面向微信小程序的慢病管理智能体（患者端）。在现有 LangGraph 工作流基础上做工程化改造：对齐公司答题系统的分层规范、数据库规范与鉴权体系，保留工作流、规则引擎、RAG 三大核心资产。<b>医生端不在本版范围，架构为其预留扩展点。</b></p>
+    <div class="chips">
+      <span class="chip">版本 <b>0.2.0</b></span>
+      <span class="chip">日期 <b>2026-10-23</b></span>
+      <span class="chip">后端 <b>Python 3.12 · FastAPI</b></span>
+      <span class="chip">前端 <b>uni-app → 微信小程序</b></span>
+      <span class="chip">数据库 <b>PostgreSQL 16</b></span>
+      <span class="chip">核心 <b>LangGraph 工作流</b></span>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+<nav class="toc">
+  <div class="t">目录</div>
+  <a href="#s1"><span>01</span>设计原则与决策</a>
+  <a href="#s2"><span>02</span>总体架构</a>
+  <a href="#s3"><span>03</span>后端分层规范</a>
+  <a href="#s4"><span>04</span>LangGraph 工作流</a>
+  <a href="#s5"><span>05</span>数据库设计</a>
+  <a href="#s6"><span>06</span>鉴权体系</a>
+  <a href="#s7"><span>07</span>配置体系</a>
+  <a href="#s8"><span>08</span>接口设计</a>
+  <a href="#s9"><span>09</span>目录结构</a>
+  <a href="#s10"><span>10</span>小程序前端</a>
+  <a href="#s11"><span>11</span>部署、运行与安全</a>
+  <a href="#s12"><span>12</span>测试体系</a>
+  <a href="#s13"><span>13</span>迁移实施步骤</a>
+  <a href="#s14"><span>14</span>未来扩展</a>
+</nav>
+
+<main>
+
+<!-- ============================================================ 01 -->
+<section id="s1">
+  <h2>01 设计原则与决策</h2>
+  <div class="tbl"><table>
+    <tr><th>决策</th><th>结论</th><th>理由</th></tr>
+    <tr><td>语言</td><td><b>Python（FastAPI）</b></td><td>核心资产（LangGraph / 规则引擎 / RAG）全在 Python 生态；公司答题系统已验证 FastAPI 工程化生产可行；本系统瓶颈在 LLM 等 I/O，不在 CPU 计算</td></tr>
+    <tr><td>工作流编排</td><td><span class="tag g">保留 LangGraph</span></td><td>多意图解析 + 条件路由 + 人机协同是本项目核心价值，重写等于降级</td></tr>
+    <tr><td>工程规范</td><td><span class="tag b">对齐答题系统</span></td><td>分层 controller→service→dao→entity、统一响应、软删、JWT+Redis、两层配置，全部照搬成熟规范</td></tr>
+    <tr><td>数据库</td><td>PostgreSQL 16 + alembic</td><td>业务 UUID + 精简审计/版本字段 + 软删；只有公司规范强制时才扩展同步元数据；单元测试可切 SQLite</td></tr>
+    <tr><td>前端</td><td>uni-app → 微信小程序</td><td>患者端触达成本低；本地与受控体验测试使用虚构或脱敏数据，真实用户测试另行完成数据与合规评估</td></tr>
+    <tr><td>医生端</td><td><span class="tag y">本版不做，预留</span></td><td>数据层预留 doctor / doctor_patient 绑定；前端医生端倾向网页形态，后续按同一接口契约扩展</td></tr>
+  </table></div>
+  <div class="callout info"><b class="lbl">改造基调</b>「外围工程化 + 核心保留」：LangGraph 图、节点、规则引擎、RAG、用户画像全部复用；改造集中在 API 层规范、数据库、鉴权、配置、工程脚本。改造完成后，未来若需 Java 化，只需按本文档的表设计与接口契约翻译，不重设计。</div>
+
+  <h3>1.1 本期 MVP 范围与验收标准</h3>
+  <div class="grid2">
+    <div class="card">
+      <h4 style="margin-top:0">本期必须完成</h4>
+      <ul>
+        <li>患者微信登录、JWT 会话、账号停用和退出登录</li>
+        <li>血压 / 血糖手动记录、历史列表和趋势统计</li>
+        <li>对话式记录、建议、计划生成，以及 confirm / reject / modify 三态确认</li>
+        <li>计划与提醒持久化；提醒列表、取消、失败重试和发送结果可追踪</li>
+        <li>高风险规则先于 LLM 执行，明确提示及时就医；LLM 不做诊断和处方</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">本期明确不做</h4>
+      <ul>
+        <li>医生端、医患绑定、处方和诊断功能</li>
+        <li>CGM 等设备直连、医院 HIS/EMR 对接</li>
+        <li>公众正式发布所需的运营与资质流程</li>
+        <li>复杂多租户；<code>org_code</code> 仅在公司规范强制时启用</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout ok"><b class="lbl">完成定义</b>在全新数据库上一条命令完成迁移和初始化；使用两个测试用户证明数据隔离；服务重启后可恢复待确认对话和提醒；Fake LLM 下全部自动化测试通过；真实 LLM 不可用时仍能记录数据并返回安全降级提示。</div>
+</section>
+
+<!-- ============================================================ 02 -->
+<section id="s2">
+  <h2>02 总体架构</h2>
+
+  <div class="arch">
+    <div class="tier"><div class="lbl">客户端</div><div class="boxes">
+      <div class="box accent"><b>微信小程序（uni-app）</b>对话 / 记录 / 计划 / 提醒 / 我的，五类页面；<code>utils/request.js</code> 统一封装 token 与错误处理</div>
+      <div class="box ext"><b>H5（同套 uni-app 代码）</b>可输出网页版，同一后端</div>
+    </div></div>
+    <div class="down">↓ HTTPS / HTTP · Bearer JWT</div>
+    <div class="tier"><div class="lbl">接入</div><div class="boxes">
+      <div class="box"><b>FastAPI 应用</b>中间件：CORS → 鉴权（JWT）→ 统一异常 → 软删过滤器；lifespan 初始化 DB / Redis / 调度器</div>
+    </div></div>
+    <div class="down">↓</div>
+    <div class="tier"><div class="lbl">应用</div><div class="boxes">
+      <div class="box accent"><b>controller/v1</b>参数接收 + 统一响应 <code>{code,data,message}</code></div>
+      <div class="box"><b>service/v1</b>业务实现：登录 / 用户 / 参数 / 健康记录 / 计划 / 提醒（REST 与工作流共用）</div>
+      <div class="box keep"><b>LangGraph 工作流</b>主图 + plan_reminder 子图；使用 conversation_id/thread_id 与持久化 checkpointer 支持中断恢复；nodes 只负责编排并调用 service</div>
+      <div class="box"><b>dao/v1 + entity</b>数据访问；do 表实体（BaseDO 元数据）、vo 视图模型</div>
+      <div class="box keep"><b>core</b>LLM 客户端与提示词 · 风险规则引擎 · 工具函数</div>
+      <div class="box keep"><b>memory</b>用户画像（profile / preferences / care_context）；生产环境落数据库，不使用本地 md 作为事实源</div>
+      <div class="box keep"><b>worker</b>数据库提醒 + outbox + 后台 worker；投递结果可重试、可审计</div>
+    </div></div>
+    <div class="down">↓</div>
+    <div class="tier"><div class="lbl">数据与外部</div><div class="boxes">
+      <div class="box"><b>PostgreSQL 16</b>核心业务表 + 会话检查点 + 审计；alembic 管理结构；单元测试可使用 SQLite</div>
+      <div class="box"><b>Redis</b><code>access_token:{session_id}</code> 会话 · 限流 · 短期缓存；开发环境可选，生产环境鉴权链路 fail closed</div>
+      <div class="box keep"><b>LLM 服务</b>OpenAI-compatible（通义 qwen），经 <code>core/llm/client</code></div>
+      <div class="box keep"><b>Medical_Lora 意图服务</b><code>127.0.0.1:8020</code>；Parser 节点通过 HTTP 完成多意图识别与槽位抽取</div>
+      <div class="box keep"><b>RAG 检索服务</b><code>127.0.0.1:8010</code>；独立维护向量、BM25、rerank、缓存与医学知识库</div>
+      <div class="box ext"><b>微信服务端</b>code2session 登录换 openid</div>
+    </div></div>
+  </div>
+
+  <div class="callout ok"><b class="lbl">服务边界</b>慢病 Agent 只保留 <code>intent_client/</code> 与 <code>rag_client/</code> 两个 HTTP 客户端，不加载 LoRA 权重、不保存 RAG 索引。模型显存、知识库更新、检索缓存与服务扩缩容分别由 <code>Medical_Lora</code> 和 <code>RAG</code> 项目负责。</div>
+</section>
+
+<!-- ============================================================ 03 -->
+<section id="s3">
+  <h2>03 后端分层规范 <small>对齐答题系统</small></h2>
+  <ul>
+    <li><b>controller</b>（<code>app/controller/v1/{chat,health,plan,reminder,user,sys}/</code>）只做参数接收与 <code>ResponseUtil.success(...)</code>；路由统一 <code>APIRouter(prefix='/api/v1/...', dependencies=[Depends(LoginService.get_current_user)])</code>，管理员端点再加 <code>Depends(CheckRoleInterfaceAuth('admin'))</code>。</li>
+    <li><b>service</b>（<code>app/service/v1/...</code>）是业务实现所在：<code>health_service</code>（记录写入，REST 与工作流 record_node 共用）、<code>plan_service</code>、<code>reminder_service</code>、<code>login_service</code>（JWT + Redis 会话）、<code>sys_param_service</code>（运行参数）、<code>user_service</code>。工作流节点（nodes）是编排语境下的业务单元，内部调用 service / dao，不在节点里直接写 SQL 或裸调 DB。</li>
+    <li><b>dao</b>（<code>app/dao/v1/</code>）数据访问：<code>HealthRecordDao</code> / <code>PlanDao</code> / <code>ReminderDao</code> / <code>SysUserDao</code> / <code>SysParamDao</code>，只做装载与查询组装。</li>
+    <li><b>entity</b>：<code>do</code> 一表一文件、继承 <code>BaseDO</code>（默认 6 个审计/版本字段，可按公司强制规范扩展）；<code>vo</code> 是 Pydantic 视图模型。</li>
+    <li><b>统一响应</b> <code>{code, data, message, request_id}</code>，<code>code=0</code> 成功；HTTP 状态保留标准语义，body code 表达细分业务原因。抛 <code>ServiceException(message, error_code, http_status)</code>，全局处理器在 <code>app/exceptions/handle.py</code>。</li>
+    <li><b>软删过滤器</b>（<code>app/config/orm_event.py</code>）：所有 SELECT 自动加 <code>deleted_at IS NULL</code>；需要查询已删行时显式加 <code>.execution_options(include_deleted=True)</code>。</li>
+    <li><b>工作流与分层的关系</b>：消息接口与 interrupt resume 接口是进入 LangGraph 的入口；REST 数据接口走 controller→service→dao，不经过图。两条路径共用同一套 service 业务实现，避免逻辑分叉。</li>
+  </ul>
+
+  <h3>ErrorCode 定义</h3>
+  <div class="tbl"><table>
+    <tr><th>code</th><th>含义</th><th>HTTP</th></tr>
+    <tr><td class="mono">0</td><td>成功</td><td>200</td></tr>
+    <tr><td class="mono">40001</td><td>参数错误</td><td>400</td></tr>
+    <tr><td class="mono">40002</td><td>认证失败（令牌无效 / 过期）</td><td>401</td></tr>
+    <tr><td class="mono">40003</td><td>无权限</td><td>403</td></tr>
+    <tr><td class="mono">40004</td><td>资源不存在</td><td>400</td></tr>
+    <tr><td class="mono">40005</td><td>状态冲突（如未确认的计划不能归档）</td><td>400</td></tr>
+    <tr><td class="mono">40006</td><td>校验失败（字段级）</td><td>400</td></tr>
+    <tr><td class="mono">40007</td><td>登录失败（code 无效等）</td><td>400</td></tr>
+    <tr><td class="mono">40040</td><td>风险拦截（高危数据，建议生成被规则引擎拒绝）</td><td>400</td></tr>
+    <tr><td class="mono">40041</td><td>计划冲突（新计划与现有计划冲突且未解决）</td><td>400</td></tr>
+    <tr><td class="mono">50010</td><td>外部服务不可用（LLM / RAG 调用失败）</td><td>500</td></tr>
+  </table></div>
+</section>
+
+<!-- ============================================================ 04 -->
+<section id="s4">
+  <h2>04 LangGraph 工作流 <small>保留 · 核心资产</small></h2>
+  <a class="goto" href="LangGraph工作流详解.html">→ 进入子页面《LangGraph 工作流详解》<small>主图/子图结构与路由、ClinicalState 状态字段、14 个节点职责、人机协同中断恢复协议、提醒机制(outbox + 时间解析)、外部服务依赖、五条典型消息流 —— 与当前代码一一对应</small></a>
+  <p>工作流整体结构不变（详见子页面《LangGraph 工作流详解》与 <code>docs/WORKFLOW.md</code>），仅做两处适配：节点内部数据访问改为调 service / dao；工作流入口注入当前登录用户（user_id 不再由前端传，从 JWT 取）。</p>
+
+  <div class="flow">
+    <div class="st"><b>入口</b><code>POST /api/v1/conversations/{id}/messages</code><i>JWT 解析 user_id → conversation_id/thread_id → Memory 注入</i></div>
+    <div class="st"><b>Parser</b>LLM 多意图解析 + 健康信息抽取<i>need_record / need_advice / need_plan / need_reminder</i></div>
+    <div class="st"><b>Normalize</b>意图归一化<i>need_plan→need_advice；need_advice→history+risk+rag</i></div>
+    <div class="st"><b>Router</b>条件路由<i>按需跳过节点</i></div>
+    <div class="st"><b>Record</b>写入健康记录<i>record_node → health_service → dao</i></div>
+    <div class="st"><b>分析链</b>History → Risk → RAG → Advice<i>规则引擎兜底 + 知识检索降幻觉</i></div>
+    <div class="st"><b>计划子图</b>Plan Draft → Conflict → User Confirm → Archive<i>人机协同，必须确认</i></div>
+    <div class="st"><b>提醒</b>direct / plan 两种来源<i>Reminder 只基于 confirmed plan</i></div>
+    <div class="st"><b>Response</b>汇总输出 + Memory 更新<i>会话摘要提取长期偏好</i></div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h4 style="margin-top:0">保留不变的规则（红线）</h4>
+      <ul>
+        <li>计划必须用户确认后才生效（confirm / reject / modify 三态）</li>
+        <li>Reminder 只能基于 confirmed_plan 创建</li>
+        <li>新计划必须过冲突检测，冲突计划不能直接覆盖旧计划</li>
+        <li>高风险数据：规则引擎拦截，建议生成走保守路径</li>
+        <li>LLM 只负责认知（理解 / 生成），Rule 负责安全</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">本版适配点</h4>
+      <ul>
+        <li><code>user_id</code> 来源：前端传 → JWT 解析（防越权）</li>
+        <li>节点写库：直接调 crud → 调 service（与 REST 共用实现）</li>
+        <li>User Confirm 节点：LangGraph <code>interrupt()</code> 暂停并持久化状态；客户端使用独立确认接口携带 <code>interrupt_id + action + revision</code> 恢复</li>
+        <li>Response Node 输出结构对齐 <code>{code,data,message}</code></li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>4.1 会话、中断与恢复协议</h3>
+  <ol>
+    <li>新消息创建或复用 <code>conversation_id</code>，该值同时作为 LangGraph <code>thread_id</code>；用户身份只取自 JWT。</li>
+    <li>计划草稿生成后保存 <code>care_plan(status=draft, revision=N)</code>，工作流调用 <code>interrupt()</code>，响应返回 <code>status=waiting_confirmation</code>、<code>interrupt_id</code>、计划摘要和 revision。</li>
+    <li>客户端调用确认接口提交 <code>confirm / reject / modify</code>。服务端校验 conversation 所有权、interrupt_id、revision 和幂等键，再通过 <code>Command(resume=...)</code> 恢复。</li>
+    <li>同一个 interrupt 只能成功处理一次；重复提交返回首次处理结果。revision 不一致返回 409/40005，避免旧页面覆盖新计划。</li>
+    <li>服务重启后必须能从 PostgreSQL checkpointer 恢复；不得依赖 Python 进程内存保存等待状态。</li>
+  </ol>
+  <div class="callout ok"><b class="lbl">确认机制现状（2026-10-24）</b><code>user_confirm_node</code> 只保留调用方传入的 <code>user_confirmed</code> 状态、禁止默认同意；确认恢复由 <code>conversation_checkpoint</code> 表 + <code>resume_interrupt</code> 实现（interrupt_id / revision 乐观锁 / 幂等），confirm 时由 <code>plan_service.confirm_plan</code> 生效计划并创建计划提醒。详见子页面第 07 节。</div>
+</section>
+
+<!-- ============================================================ 05 -->
+<section id="s5">
+  <h2>05 数据库设计</h2>
+
+  <h3>5.1 表规范（全部业务表统一）</h3>
+  <ul>
+    <li>对外业务标识统一使用 PostgreSQL 原生 UUID。若公司基础框架强制要求，可保留自增内部主键 + 业务 UUID；否则直接以 UUID 为主键，避免双标识增加复杂度。</li>
+    <li>通用元数据默认使用 <code>created_at / created_by / updated_at / updated_by / deleted_at / version</code>。<code>org_code / is_upload / upload_time / is_force</code> 仅在存在组织隔离或离线同步需求时启用，不机械照搬。</li>
+    <li><b>表间引用一律使用业务 UUID</b>；父行先 <code>flush()</code> 再创建子行。所有状态变更使用 <code>version</code> 做乐观锁。</li>
+    <li>来自请求的 UUID 先 <code>is_uuid()</code> 校验，不合法当不存在；<code>create_by / update_by</code> 只能是用户 uuid 或 NULL。</li>
+    <li>时间列 <code>timestamp</code>，VO 由 <code>BaseVO</code> 统一格式化成 <code>YYYY-MM-DD HH:MM:SS</code>。</li>
+    <li>结构由 alembic 管理：改 DO → <code>alembic revision --autogenerate -m "xxx"</code> → <code>alembic upgrade head</code>。</li>
+    <li>软删使用 <code>deleted_at</code>；SELECT 默认过滤。审计、恢复场景通过显式 execution option 查询已删数据。</li>
+    <li>健康数据写入支持 <code>Idempotency-Key</code> 或 <code>source_event_id</code> 唯一约束，防止网络重试和设备同步产生重复记录。</li>
+  </ul>
+
+  <h3>5.2 MVP 核心逻辑表（14 张）</h3>
+  <div class="tbl"><table>
+    <tr><th>域</th><th>表</th><th>业务 uuid</th><th>用途与关键列</th></tr>
+    <tr><td rowspan="5">sys</td><td class="mono">sys_user</td><td class="mono">user_id</td><td>登录身份：openid（唯一）、login_name、role（admin / patient）、password_hash、status；不存健康详情</td></tr>
+    <tr><td class="mono">patient_profile</td><td class="mono">profile_id</td><td>患者资料：user_id、gender、birth_date、timezone、disease_tags、consent_version</td></tr>
+    <tr><td class="mono">patient_memory</td><td class="mono">user_id</td><td>长期画像：profile、preferences、care_context、version；生产环境数据库持久化，本地 md 只作未登录开发 fixture</td></tr>
+    <tr><td class="mono">auth_session</td><td class="mono">session_id</td><td>可撤销登录会话：user_id、expires_at、revoked_at；生产环境同时写入 Redis，数据库用于审计和兜底核验</td></tr>
+    <tr><td class="mono">sys_param</td><td class="mono">param_id</td><td>非秘密运行参数：param_key、param_value、description、作用域；API Key、数据库口令等不进入本表</td></tr>
+    <tr><td>health</td><td class="mono">health_observation</td><td class="mono">observation_id</td><td>一条指标一个观测：user_id、metric_type、value_num、value_text、unit、systolic_value、diastolic_value、context（空腹/餐后等）、measured_at、source、source_event_id、raw_payload(JSONB)</td></tr>
+    <tr><td rowspan="2">plan</td><td class="mono">care_plan</td><td class="mono">plan_id</td><td>计划主表：user_id、title、summary、status（draft / confirmed / active / archived / rejected / replaced / cancelled）、revision、source、replaced_by</td></tr>
+    <tr><td class="mono">care_plan_item</td><td class="mono">item_id</td><td>结构化计划项：plan_id、item_type、content、schedule_rule、sort_no、status；提醒从计划项生成</td></tr>
+    <tr><td rowspan="2">reminder</td><td class="mono">reminder</td><td class="mono">reminder_id</td><td>user_id、plan_item_id（可空）、title、schedule_rule、next_run_at、timezone、channel、status、retry_count、last_error、last_sent_at</td></tr>
+    <tr><td class="mono">notification_outbox</td><td class="mono">event_id</td><td>reminder_id、dedupe_key、payload、status、available_at、attempts；业务事务内写入，worker 锁定投递，保证可重试且不重复</td></tr>
+    <tr><td rowspan="3">conversation</td><td class="mono">conversation</td><td class="mono">conversation_id</td><td>user_id、title、status、last_message_at；conversation_id 同时作为 LangGraph thread_id</td></tr>
+    <tr><td class="mono">conversation_message</td><td class="mono">message_id</td><td>conversation_id、role、content、structured_data、request_id、created_at；敏感内容按保留策略清理</td></tr>
+    <tr><td class="mono">conversation_checkpoint</td><td class="mono">checkpoint_id</td><td>LangGraph 状态、interrupt_id、revision、等待动作、过期时间；优先使用官方 PostgreSQL checkpointer 的表结构</td></tr>
+    <tr><td>audit</td><td class="mono">audit_log</td><td class="mono">audit_id</td><td>actor_id、action、resource_type、resource_id、request_id、result、created_at；不记录完整提示词和敏感正文</td></tr>
+  </table></div>
+
+  <div class="callout ok"><b class="lbl">旧结构已清理</b>原 <code>health_records / plans / reminders</code> 三张 PoC 表、旧 SQLite 文件、<code>crud_*.py</code>、旧 <code>/api/chat</code> 和进程内 scheduler 已删除。项目只保留本节定义的新版数据模型；开发库从空库执行 alembic 初始化，不再提供旧表迁移兼容层。</div>
+
+  <h3>5.3 脚本</h3>
+  <div class="tbl"><table>
+    <tr><th>命令</th><th>作用</th></tr>
+    <tr><td class="mono">alembic upgrade head</td><td>建表 / 升级结构（幂等）</td></tr>
+    <tr><td class="mono">python scripts/init_db.py [--reset]</td><td>管理员账号、默认参数、演示数据；<code>--reset</code> 清空业务表</td></tr>
+    <tr><td class="mono">python scripts/smoke_test.py</td><td>全流程冒烟：登录 → 记录 → 建议 → 计划确认 → 提醒，覆盖 REST 与工作流两条路径</td></tr>
+  </table></div>
+  <p>Redis 主要保存 <code>access_token:{session_id}</code>、限流计数和短期缓存。开发环境未配置 Redis 时可使用进程内替代以方便单机调试；<b>生产环境 Redis 不可用时鉴权链路 fail closed，不得静默退化为纯 JWT</b>。LangGraph 的可恢复状态以 PostgreSQL checkpointer 为事实源。</p>
+</section>
+
+<!-- ============================================================ 06 -->
+<section id="s6">
+  <h2>06 鉴权体系 <small>JWT + Redis 会话</small></h2>
+  <div class="grid2">
+    <div class="card">
+      <h4 style="margin-top:0">登录链路（小程序）</h4>
+      <ol>
+        <li>小程序 <code>wx.login()</code> 拿临时 code → <code>POST /api/v1/login {code}</code></li>
+        <li>后端调微信 <code>code2session</code> 换 openid</li>
+        <li>openid 查 <code>sys_user</code>：不存在则注册（首次登录建号），存在则继续</li>
+        <li>签发标准 JWT（HS256，payload 只有 <code>sub / session_id / iat / exp</code>），同时写 Redis <code>access_token:{session_id}</code></li>
+        <li>每次登录新 session_id，多端互不影响</li>
+      </ol>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">请求校验</h4>
+      <ul>
+        <li>每个请求 <code>Authorization: Bearer &lt;令牌&gt;</code>，<code>LoginService.get_current_user</code> 校验签名（只认配置里的算法，防 <code>alg=none</code>）、查 Redis 会话并续期、<b>角色现查数据库</b>（停用账号拿旧令牌也无效）</li>
+        <li>登出删除 Redis 会话后即刻失效；生产环境 Redis 不可用时拒绝登录或返回服务不可用，不降低为不可撤销的纯 JWT</li>
+        <li>本期角色为 <code>admin</code>（管理员）和 <code>patient</code>（患者）；权限判断使用策略/依赖，不把“永远只有两类角色”写死，为后续独立医生权限模型预留空间</li>
+        <li>所有涉及 <code>user_id</code> 的资源操作（记录 / 计划 / 提醒）强制以 JWT 里的身份为准，杜绝传参越权</li>
+        <li>登录、对话、记录写入和确认接口按用户与 IP 限流；连续失败和异常访问写入 audit_log</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ 07 -->
+<section id="s7">
+  <h2>07 配置体系 <small>两层</small></h2>
+  <p>两层：<b>进程级配置与秘密</b>在环境变量或部署平台 Secret（<code>app/config/env.py</code> 是唯一入口）；<b>非敏感运行参数</b>放在 <code>sys_param</code> 表，取值优先级 <b>数据库 &gt; 环境变量 &gt; 代码默认值</b>，Redis 缓存写穿、改完即生效。API Key、JWT 密钥、数据库口令、微信 Secret 不写入数据库参数页、HTML、日志或 Git。</p>
+  <div class="grid2">
+    <div>
+      <h4>.env 键（进程级）</h4>
+      <div class="tbl"><table>
+        <tr><th>键</th><th>说明</th></tr>
+        <tr><td class="mono">APP_ENV / APP_NAME / APP_HOST / APP_PORT</td><td>应用基础</td></tr>
+        <tr><td class="mono">JWT_SECRET_KEY / JWT_ALGORITHM / JWT_EXPIRE_MINUTES</td><td>HS256；生产密钥必须存在</td></tr>
+        <tr><td class="mono">LLM_API_KEY</td><td>模型调用密钥，只从 Secret / 环境变量读取</td></tr>
+        <tr><td class="mono">DB_TYPE / DB_HOST / DB_PORT / DB_USERNAME / DB_PASSWORD / DB_DATABASE</td><td><code>DB_TYPE=sqlite</code>（本地自测）或 <code>postgresql</code></td></tr>
+        <tr><td class="mono">REDIS_HOST / REDIS_PORT / REDIS_PASSWORD / REDIS_DATABASE</td><td>开发可选；生产必须配置并探活</td></tr>
+        <tr><td class="mono">WX_APPID / WX_SECRET</td><td>小程序 code2session 凭证</td></tr>
+      </table></div>
+    </div>
+    <div>
+      <h4>sys_param 运行参数（示例）</h4>
+      <div class="tbl"><table>
+        <tr><th>键</th><th>默认</th><th>说明</th></tr>
+        <tr><td class="mono">LLM_BASE_URL</td><td class="mono">https://dashscope.aliyuncs.com/compatible-mode/v1</td><td>OpenAI-compatible</td></tr>
+        <tr><td class="mono">LLM_MODEL</td><td class="mono">qwen3.6-plus</td><td>模型名</td></tr>
+        <tr><td class="mono">LLM_TIMEOUT</td><td class="num">60</td><td>单次调用超时（秒）</td></tr>
+        <tr><td class="mono">INTENT_BASE_URL</td><td class="mono">http://127.0.0.1:8020</td><td>Medical_Lora 意图识别服务（必需）</td></tr>
+        <tr><td class="mono">RAG_BASE_URL</td><td class="mono">http://127.0.0.1:8010</td><td>外部 RAG 服务；不可用时按 RAG_FAIL_OPEN 降级</td></tr>
+        <tr><td class="mono">RISK_GLUCOSE_HIGH</td><td class="num">16.7</td><td>血糖高危阈值（mmol/L）</td></tr>
+        <tr><td class="mono">RISK_BP_HIGH</td><td class="mono">180/120</td><td>血压高危阈值</td></tr>
+      </table></div>
+    </div>
+  </div>
+  <p><code>LLM_API_KEY</code> 只从 Secret/环境变量读取，不进入 sys_param。参数接口：<code>GET /api/v1/sys/param/list</code>（带 source=db/env/default）、<code>PUT /api/v1/sys/param</code>、<code>DELETE /api/v1/sys/param/{param_id}</code>，均限管理员，并使用允许列表拒绝写入敏感键。</p>
+</section>
+
+<!-- ============================================================ 08 -->
+<section id="s8">
+  <h2>08 接口设计 <small>前缀 /api/v1 · 除登录外全部要 Bearer 令牌 · ★ = 仅管理员</small></h2>
+  <div class="tbl"><table>
+    <tr><th>模块</th><th>接口</th></tr>
+    <tr><td>认证</td><td><code>POST /auth/wechat-login</code>（code 换 token）· <code>GET /auth/userinfo</code> · <code>POST /auth/logout</code> · <code>GET /healthz</code>（免登录探活，不返回业务数据）</td></tr>
+    <tr><td>对话 <code>/conversations</code></td><td><code>POST</code> 新建会话 · <code>POST /{conversation_id}/messages</code> 发送消息 · <code>POST /{conversation_id}/interrupts/{interrupt_id}/resume</code> 提交 confirm/reject/modify · <code>GET /{conversation_id}</code> 查询状态</td></tr>
+    <tr><td>健康 <code>/health</code></td><td><code>GET /observations</code>（分页 + metric_type / 时间筛选）· <code>POST /observations</code>（支持 Idempotency-Key）· <code>GET /observations/{observation_id}</code> · <code>DELETE /observations/{observation_id}</code> · <code>GET /stats</code></td></tr>
+    <tr><td>计划 <code>/plans</code></td><td><code>GET</code>（按状态筛选）· <code>GET /{plan_id}</code> · 对话生成计划只通过 interrupt 恢复确认 · <code>POST /{plan_id}/archive</code> · <code>DELETE /{plan_id}</code>（仅 draft）</td></tr>
+    <tr><td>提醒 <code>/reminders</code></td><td><code>GET</code> · <code>POST</code> 手动创建 · <code>POST /{reminder_id}/cancel</code> · <code>GET /{reminder_id}</code></td></tr>
+    <tr><td>用户 <code>/me</code></td><td><code>GET</code> 我的资料 · <code>PUT</code> 更新（性别 / 出生日期 / 慢病标签）</td></tr>
+    <tr><td>参数 ★ <code>/sys/param</code></td><td><code>GET list</code> · <code>PUT</code> upsert · <code>DELETE {param_id}</code></td></tr>
+  </table></div>
+  <div class="callout warn"><b class="lbl">接口拆分动机</b>现状只有 <code>POST /api/chat</code> 一个接口，小程序的历史记录页、计划页、趋势图都必须走 REST 直查，不能每次都跑一遍图。工作流只负责「对话式交互」，数据型页面走标准 CRUD。</div>
+  <h3>8.1 通用接口契约</h3>
+  <ul>
+    <li>成功响应统一为 <code>{code:0,data,message,request_id}</code>；HTTP 状态保持标准语义：400 参数错误、401 未认证、403 无权限、404 不存在、409 状态/版本冲突、429 限流、503 依赖不可用。</li>
+    <li>列表统一使用 <code>page_no/page_size</code>，响应 <code>{items,total,page_no,page_size}</code>；时间使用带时区的 ISO 8601，数据库统一存 UTC。</li>
+    <li>资源接口永远不接收可覆盖当前身份的 <code>user_id</code>；管理员代查使用独立、审计化的管理端接口。</li>
+    <li>所有写接口支持 request-id；健康记录、确认和提醒创建必须支持幂等，防止小程序重试造成重复副作用。</li>
+  </ul>
+</section>
+
+<!-- ============================================================ 09 -->
+<section id="s9">
+  <h2>09 目录结构 <small>改造后</small></h2>
+<pre><code>chronic_care_agent_2/
+├── server.py / app.py             应用工厂（lifespan、中间件、异常、路由注册）
+├── alembic/ + alembic.ini         表结构迁移
+├── app/
+│   ├── config/                    env.py 配置唯一入口 · constants.py · orm_event.py 软删 · database.py 引擎 · get_db.py · get_redis.py
+│   ├── controller/v1/             chat / health / plan / reminder / user / sys 六个模块，参数接收 + 统一响应
+│   ├── service/v1/                login · user · sys_param · health · plan · reminder · conversation；事务边界与业务状态机
+│   ├── dao/v1/                    HealthRecordDao · PlanDao · ReminderDao · SysUserDao · SysParamDao
+│   ├── entity/
+│   │   ├── do/v1/                 user/profile · observation · plan/item · reminder · conversation · audit · param
+│   │   └── vo/v1/                 视图模型（Pydantic，对齐统一响应）
+│   ├── graph/                     LangGraph 编排（保留）：state.py · builder.py · routing.py · normalizer.py · plan_reminder_graph.py · workflow.py
+│   ├── nodes/                     工作流节点（保留，数据访问改调 service/dao）
+│   ├── core/
+│   │   ├── llm/                   client.py（OpenAI-compatible）· prompts.py · output_parser.py
+│   │   ├── rules/                 risk_engine.py · glucose_rules.py · blood_pressure_rules.py · plan_conflict_rules.py
+│   │   └── tools/                 time_parser.py · stats_tool.py · id_generator.py
+│   ├── intent_client/             Medical_Lora HTTP 客户端与输入输出 Schema
+│   ├── rag_client/                外部 RAG HTTP 客户端与输入输出 Schema
+│   ├── memory/                    用户画像：service.py · store.py · updater.py · schemas.py（生产落 DB）
+│   ├── worker/                    reminder_worker · outbox_dispatcher · retry_policy
+│   ├── aspect/interface_auth.py   角色切面 CheckRoleInterfaceAuth
+│   ├── middlewares/               请求中间件（CORS / 请求日志 / request-id）
+│   ├── exceptions/                ServiceException + 全局处理器
+│   └── utils/                     response_util · page_util · pwd_util · common_util
+├── scripts/                       init_db.py · smoke_test.py
+├── data/                          sqlite（本地自测）/ memory（用户画像）/ cache
+├── docs/                          文档（本页 + 现有 ARCHITECTURE / WORKFLOW / STRUCTURE）
+└── tests/                         pytest：REST 接口测试 + 工作流测试 + 冒烟</code></pre>
+
+  <h3>现状 → 目标 对照</h3>
+  <div class="tbl"><table>
+    <tr><th>现有位置</th><th>去向</th><th>动作</th></tr>
+    <tr><td class="mono">app/api/</td><td class="mono">app/controller/v1/</td><td>旧单接口已删除；按 auth / conversation / health / plan / reminder / user 拆分</td></tr>
+    <tr><td class="mono">旧三张 ORM 表</td><td class="mono">app/database/models.py</td><td>旧模型已删除；只保留 observation / plan / reminder / conversation / audit 等新版模型</td></tr>
+    <tr><td class="mono">app/database/crud_*.py</td><td class="mono">app/service/</td><td>旧 CRUD 已删除；事务、用户隔离与状态机集中在 service</td></tr>
+    <tr><td class="mono">app/scheduler/</td><td class="mono">app/worker/</td><td>内存调度器已删除；改为 reminder + notification_outbox 独立 worker</td></tr>
+    <tr><td class="mono">app/schemas/</td><td class="mono">controller 请求模型 + service 返回契约</td><td>未使用的旧 DTO 已删除；对外契约以 OpenAPI/Pydantic 为准</td></tr>
+    <tr><td class="mono">app/config/settings.py</td><td class="mono">app/config/env.py</td><td>两层配置（.env + sys_param）</td></tr>
+    <tr><td class="mono">app/graph/ · app/nodes/ · app/core/ · app/rag/ · app/memory/</td><td class="mono">原位置保留</td><td><span class="tag g">保留核心</span>，节点数据访问统一改调新版 service</td></tr>
+  </table></div>
+</section>
+
+<!-- ============================================================ 10 -->
+<section id="s10">
+  <h2>10 小程序前端 <small>uni-app（Vue 3）</small></h2>
+  <div class="grid2">
+    <div>
+      <h4>页面清单</h4>
+      <div class="tbl"><table>
+        <tr><th>页面</th><th>内容</th></tr>
+        <tr><td class="mono">/pages/login</td><td>微信一键登录（wx.login → code → 后端换 token）</td></tr>
+        <tr><td class="mono">/pages/index</td><td>对话首页（与 Agent 聊天：记录 / 建议 / 计划 / 提醒）</td></tr>
+        <tr><td class="mono">/pages/record</td><td>健康记录：手动录入 + 列表 + 筛选</td></tr>
+        <tr><td class="mono">/pages/stats</td><td>趋势图表（血糖 / 血压曲线，ECharts 小程序版）</td></tr>
+        <tr><td class="mono">/pages/plan</td><td>计划：待确认 / 进行中 / 历史</td></tr>
+        <tr><td class="mono">/pages/reminder</td><td>提醒列表 + 开关</td></tr>
+        <tr><td class="mono">/pages/me</td><td>个人资料（慢病标签、性别、出生日期）+ 设置</td></tr>
+      </table></div>
+    </div>
+    <div>
+      <h4>基础设施</h4>
+      <ul>
+        <li><code>utils/request.js</code>：唯一请求封装 —— 自动带 token、<code>code≠0</code> 统一报错、40002 清令牌回登录页</li>
+        <li>登录态存 uni.storage；应用启动先拉 <code>GET /userinfo</code> 再渲染</li>
+        <li>对话页发送消息后保存 <code>conversation_id</code>；收到 <code>waiting_confirmation</code> 时展示计划卡片，并调用独立 resume 接口提交 confirm / reject / modify</li>
+        <li>图表用 ECharts（<code>lime-echart</code> 或 mpvue-echarts），数据来自 <code>GET /api/v1/health/stats</code></li>
+        <li>开发期：微信开发者工具勾选「不校验合法域名」，直连本机后端 IP</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ 11 -->
+<section id="s11">
+  <h2>11 部署、运行与数据安全</h2>
+  <div class="tbl"><table>
+    <tr><th>阶段</th><th>形态</th><th>说明</th></tr>
+    <tr><td>本地开发</td><td class="mono">uvicorn :8000 + SQLite/PG</td><td>只使用虚构或脱敏数据；微信开发者工具可在开发设置下连接本机或局域网后端</td></tr>
+    <tr><td>受控体验测试</td><td>体验版 + 测试环境 PG/Redis</td><td>限定测试成员、独立测试数据、HTTPS、访问日志脱敏；不因“体验版”而跳过个人信息和健康数据保护</td></tr>
+    <tr><td>生产发布</td><td>PG + Redis + API + worker + nginx</td><td>上线前由业务与法务确认主体、类目、备案、隐私政策、第三方模型处理、数据存储地域和医疗安全边界；结论不在技术文档中预设</td></tr>
+  </table></div>
+  <h3>11.1 生产基线</h3>
+  <ul>
+    <li>API 与 worker 分进程部署；Docker 启动命令先执行 <code>alembic upgrade head</code>，迁移失败则停止发布。</li>
+    <li>提供 <code>/healthz</code>（进程存活）和 <code>/readyz</code>（PG/Redis/关键配置就绪）；nginx 只把 ready 实例加入流量。</li>
+    <li>日志包含 request_id、user_id 哈希、接口、耗时和错误类别；禁止记录 token、openid、完整健康数据、完整提示词和模型密钥。</li>
+    <li>PostgreSQL 自动备份并定期做恢复演练；迁移有回滚/前向修复方案。提醒 worker 使用数据库锁或 skip-locked，确保多实例下不重复投递。</li>
+    <li>监控 API 错误率、LLM/RAG 超时与 token、规则高风险命中、提醒积压与发送失败；设置告警阈值。</li>
+  </ul>
+  <div class="callout warn"><b class="lbl">数据边界</b>本地技术验证可不连接真实业务系统，但只要使用真实用户健康数据、把数据发送给第三方模型或邀请外部用户使用，就必须先完成相应的数据处理、授权与安全评估，不能以“开发/体验环境”为由自动豁免。</div>
+
+  <h3>11.2 医疗安全与模型边界</h3>
+  <ul>
+    <li>产品定位为健康记录、生活方式建议和提醒工具，不输出诊断结论，不生成或调整处方，不替代医生。</li>
+    <li>血压、血糖及危险症状先经过确定性规则；达到高风险阈值时直接输出固定升级提示，禁止由 LLM 弱化、覆盖或延迟。</li>
+    <li>LLM 输出必须通过 Pydantic/JSON Schema、单位与数值范围、计划禁忌和引用证据校验；失败时返回安全降级文案，不把原始模型文本直接展示。</li>
+    <li>RAG 文档记录来源、版本、生效日期和适用人群；答案展示证据摘要。检索内容视为不可信输入，不能覆盖系统安全规则或索取秘密。</li>
+    <li>对提示词注入、越权工具调用、异常超长输入、重复请求和模型超时建立测试；所有关键决策记录规则版本和模型版本以便追溯。</li>
+  </ul>
+</section>
+
+<!-- ============================================================ 12 -->
+<section id="s12">
+  <h2>12 测试体系 <small>四层：单元 → 工作流 → 接口 → 冒烟</small></h2>
+
+  <h3>12.1 单元测试（pytest，不调 LLM、不连外部服务）</h3>
+  <div class="tbl"><table>
+    <tr><th>对象</th><th>要点</th></tr>
+    <tr><td>规则引擎 <code>core/rules/</code></td><td>纯函数：血糖 / 血压阈值边界（临界值、刚好超标）、风险等级判定、计划冲突检测（同类型计划、时间重叠）</td></tr>
+    <tr><td>工具函数 <code>core/tools/</code></td><td>时间解析（“今晚9点”“明天早上” → 具体时间）、统计工具、ID 生成</td></tr>
+    <tr><td>输出解析 <code>core/llm/output_parser.py</code></td><td>JSON 容错：```json 围栏剥离、非法 JSON 修复、字段缺失兜底</td></tr>
+    <tr><td>用户画像 <code>memory/</code></td><td>候选记忆提取、policy 过滤（一次性数据不入画像）、数据库存取与并发版本控制；本地 md 仅用于开发 fixture</td></tr>
+    <tr><td>service / dao</td><td>SQLite 临时库（每用例独立 fixture）：CRUD、软删过滤、分页、状态机流转（draft → confirmed → active → archived）</td></tr>
+  </table></div>
+
+  <h3>12.2 工作流测试（注入 Fake LLM）</h3>
+  <ul>
+    <li>构造 <code>FakeLLMClient</code>：按调用序号返回预置 JSON（意图解析 → 建议 → 计划草稿各一次），<b>测试全程零 LLM 消耗、秒级跑完</b></li>
+    <li>路由覆盖：只记录 / 只建议 / 生成计划 / 直接提醒 / 全流程五条典型路径</li>
+    <li>interrupt 机制：持久化中断 → confirm / reject / modify 恢复；重复 resume 幂等；旧 revision 返回冲突；服务重启后仍可恢复</li>
+    <li>规则拦截：高危血糖输入 → 建议走保守路径（40040 语义）</li>
+    <li>现有 <code>tests/test_workflow_basic.py</code> 平移进新结构后按上述矩阵扩充</li>
+  </ul>
+
+  <h3>12.3 接口测试（TestClient，走完整 HTTP 栈）</h3>
+  <div class="tbl"><table>
+    <tr><th>组</th><th>用例</th></tr>
+    <tr><td>登录链路</td><td>mock code2session：首次登录建号、二次登录复用、无效 code 40007</td></tr>
+    <tr><td>鉴权</td><td>无 token → 40002；伪造签名 → 40002；user 调管理员接口 → 40003；停用账号旧 token 失效</td></tr>
+    <tr><td>越权防护</td><td>A 用户操作 B 用户的记录 / 计划 / 提醒 → 40004（user_id 以 JWT 为准）</td></tr>
+    <tr><td>统一响应</td><td>全部接口断言 <code>{code,data,message}</code> 结构与错误码语义</td></tr>
+    <tr><td>软删</td><td>DELETE 后列表不可见、GET 单条 40004、连删行查询（include_deleted）可见</td></tr>
+    <tr><td>状态机</td><td>draft 计划不能直接归档（40005）；reminder 不能挂在未确认计划上</td></tr>
+    <tr><td>幂等与并发</td><td>相同 Idempotency-Key 不重复写记录；同一 interrupt 并发确认只有一次成功；worker 多实例不重复发送</td></tr>
+    <tr><td>安全降级</td><td>LLM / RAG 超时不影响健康记录写入；高风险规则不依赖 LLM；生产 Redis 不可用时鉴权 fail closed</td></tr>
+  </table></div>
+
+  <h3>12.4 冒烟测试（scripts/smoke_test.py，一条命令）</h3>
+  <p>对齐答题系统思路：连 <code>.env</code> 配置的真实库，<b>全流程串跑一遍</b>，跑完自动清理（专用 smoke 用户，前后清理其数据）：</p>
+<pre><code>登录（mock wx）→ 建记录 → 查记录 REST → /chat 对话（建议）→ 计划确认
+→ 计划归档 → 计划提醒创建 → 提醒 REST 查询 → 参数读写 → 数据清理</code></pre>
+  <p>LLM 策略：普通 CI 和冒烟默认使用 Fake LLM；真实 LLM 测试使用显式开关和独立测试密钥，避免仅因环境里存在 API Key 就产生费用或把测试健康数据发送到外部。</p>
+
+  <div class="callout info"><b class="lbl">数据隔离原则</b>单元 / 接口测试用 SQLite 临时库，每用例独立；冒烟测试用独立 smoke 用户 + 自清理；开发库与测试数据不混用。任何测试不依赖真实 LLM 与网络。</div>
+</section>
+
+<!-- ============================================================ 13 -->
+<section id="s13">
+  <h2>13 迁移实施步骤</h2>
+  <div class="flow">
+    <div class="st"><b>M0 基线保护</b>冻结 PoC 行为 · Fake LLM · 规则和五条工作流回归测试<i>先保证重构前后核心语义一致</i></div>
+    <div class="st"><b>M1 工程骨架</b>FastAPI 应用工厂 · lifespan · 分层目录 · 统一响应/异常 · request-id · healthz/readyz<i>不保留旧 /api/chat</i></div>
+    <div class="st"><b>M2 数据库</b>新版模型 · alembic · PG/SQLite 配置 · init_db · 空库初始化<i>旧数据库与三表兼容层已删除</i></div>
+    <div class="st"><b>M3 多用户安全</b>sys_user/profile · wx.login · JWT + Redis · 限流 · audit_log<i>清除 default_user，user_id 只取 JWT</i></div>
+    <div class="st"><b>M4 会话恢复</b>conversation · PostgreSQL checkpointer · interrupt/resume · 幂等与乐观锁<i>替换默认自动确认</i></div>
+    <div class="st"><b>M5 业务接口</b>observation / plan / reminder / me REST · 节点改调 service · worker/outbox<i>REST 与工作流共用事务和状态机</i></div>
+    <div class="st"><b>M6 小程序联调</b>登录、对话、记录趋势、计划确认、提醒、资料页面<i>先闭环 MVP，再扩医生端和设备</i></div>
+    <div class="st"><b>M7 上线准备</b>Docker · 备份恢复 · 监控告警 · 安全与合规评审 · 真实 LLM 小流量验证<i>通过上线检查表后才开放外部用户</i></div>
+  </div>
+  <p>每步独立可验证：M1 后新版路由可启动；M2 后空库可一键迁移；M3 用两个用户证明数据隔离；M4 可跨重启恢复确认；M5 后 REST、工作流和提醒 worker 共用同一业务实现。</p>
+</section>
+
+<!-- ============================================================ 14 -->
+<section id="s14">
+  <h2>14 未来扩展 <small>本版不做，设计预留</small></h2>
+  <div class="tbl"><table>
+    <tr><th>方向</th><th>预留点</th></tr>
+    <tr><td>医生端</td><td>采用独立 doctor 权限策略 + doctor_patient 授权关系；是否复用 sys_user 由统一身份体系决定，不把 patient/admin 两角色约束写死；医生查看、开计划和告警处置全部留审计</td></tr>
+    <tr><td>CGM 设备接入</td><td>health_observation.source 已含 device，source_event_id 保证幂等；设备数据走专用接入服务或 REST，不经过对话图</td></tr>
+    <tr><td>流式对话</td><td>Response Node 支持 SSE，接口不变（响应体切换）</td></tr>
+    <tr><td>外部模型服务扩容</td><td>INTENT_BASE_URL 与 RAG_BASE_URL 均通过环境变量配置；可在地址前增加网关、鉴权、限流与多实例负载均衡</td></tr>
+    <tr><td>Java 化</td><td>表设计、接口契约、工作流语义均为语言无关资产；需要时按本文档翻译（LangGraph → LangChain4j 或自研状态机）</td></tr>
+  </table></div>
+</section>
+
+</main>
+</div>
+
+<footer class="footer">慢性病管理 Agent · 架构设计 v0.2.0 · 2026-10-23 · 参考《智能出题与在线答题系统-技术说明》的工程经验，并针对健康数据、可恢复工作流与提醒可靠性做专项修订；LangGraph 工作流细节以子页面《LangGraph 工作流详解》与 docs/WORKFLOW.md 为准。</footer>
+</body>
+</html>

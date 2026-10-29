@@ -1,0 +1,21 @@
+{
+  "name": "慢性病管理助手",
+  "appid": "",
+  "description": "慢病管理 Agent 患者端(测试界面,未连接后端)",
+  "versionName": "0.1.0",
+  "versionCode": "100",
+  "vueVersion": "3",
+  "h5": {
+    "title": "慢性病管理助手",
+    "router": {
+      "mode": "hash"
+    }
+  },
+  "mp-weixin": {
+    "appid": "",
+    "setting": {
+      "urlCheck": false
+    },
+    "usingComponents": true
+  }
+}

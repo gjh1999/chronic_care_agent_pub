@@ -1,0 +1,2 @@
+<template><view class="page"><view v-for="plan in plans" :key="plan.plan_id" class="card"><view>{{plan.title}} · {{plan.status}}</view><view v-for="item in plan.items" :key="item.item_id" class="muted">{{item.content}}</view></view></view></template>
+<script setup>import{ref,onMounted}from'vue';import{api}from'../../api';const plans=ref([]);onMounted(async()=>plans.value=await api.plans())</script>
